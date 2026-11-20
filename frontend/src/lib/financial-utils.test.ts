@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   computeKPIs,
   computeMonthlyData,
+  derivePeriodLabel,
   formatCurrency,
   formatPercent,
 } from "./financial-utils";
@@ -100,6 +101,151 @@ describe("computeMonthlyData", () => {
       outcome: 0,
       profitPercent: 100,
     });
+  });
+});
+
+describe("derivePeriodLabel", () => {
+  it("derives single month label when movements span single month", () => {
+    const singleMonth: FinancialMovement[] = [
+      {
+        create_date: "2024-01-15",
+        amount: 1000,
+        operation_type: "income",
+        category: "sales",
+        business_type: "B2B",
+      },
+      {
+        create_date: "2024-01-20",
+        amount: 500,
+        operation_type: "outcome",
+        category: "suppliers",
+        business_type: "B2B",
+      },
+    ];
+
+    const label = derivePeriodLabel(singleMonth);
+    expect(label).toBe("Jan 2024");
+  });
+
+  it("derives range label spanning multiple months same year", () => {
+    const sameYear: FinancialMovement[] = [
+      {
+        create_date: "2024-01-15",
+        amount: 1000,
+        operation_type: "income",
+        category: "sales",
+        business_type: "B2B",
+      },
+      {
+        create_date: "2024-06-10",
+        amount: 1200,
+        operation_type: "income",
+        category: "sales",
+        business_type: "B2C",
+      },
+      {
+        create_date: "2024-12-28",
+        amount: 1500,
+        operation_type: "income",
+        category: "sales",
+        business_type: "B2B",
+      },
+    ];
+
+    const label = derivePeriodLabel(sameYear);
+    expect(label).toBe("Jan 2024 - Dec 2024");
+  });
+
+  it("derives range label spanning multiple years", () => {
+    const crossYear: FinancialMovement[] = [
+      {
+        create_date: "2025-11-15",
+        amount: 1000,
+        operation_type: "income",
+        category: "sales",
+        business_type: "B2B",
+      },
+      {
+        create_date: "2025-12-20",
+        amount: 1200,
+        operation_type: "income",
+        category: "sales",
+        business_type: "B2B",
+      },
+      {
+        create_date: "2026-01-05",
+        amount: 1500,
+        operation_type: "income",
+        category: "sales",
+        business_type: "B2B",
+      },
+      {
+        create_date: "2026-10-30",
+        amount: 1800,
+        operation_type: "income",
+        category: "sales",
+        business_type: "B2B",
+      },
+    ];
+
+    const label = derivePeriodLabel(crossYear);
+    expect(label).toBe("Nov 2025 - Oct 2026");
+  });
+
+  it("handles unordered movements correctly", () => {
+    const unordered: FinancialMovement[] = [
+      {
+        create_date: "2026-10-30",
+        amount: 1800,
+        operation_type: "income",
+        category: "sales",
+        business_type: "B2B",
+      },
+      {
+        create_date: "2025-11-15",
+        amount: 1000,
+        operation_type: "income",
+        category: "sales",
+        business_type: "B2B",
+      },
+      {
+        create_date: "2026-01-05",
+        amount: 1500,
+        operation_type: "income",
+        category: "sales",
+        business_type: "B2B",
+      },
+    ];
+
+    const label = derivePeriodLabel(unordered);
+    expect(label).toBe("Nov 2025 - Oct 2026");
+  });
+
+  it("handles day 1 of month dates correctly (no month shifting)", () => {
+    const dayOne: FinancialMovement[] = [
+      {
+        create_date: "2025-12-01",
+        amount: 100,
+        operation_type: "income",
+        category: "sales",
+        business_type: "B2B",
+      },
+      {
+        create_date: "2026-01-01",
+        amount: 200,
+        operation_type: "income",
+        category: "sales",
+        business_type: "B2B",
+      },
+    ];
+
+    const label = derivePeriodLabel(dayOne);
+    expect(label).toBe("Dec 2025 - Jan 2026");
+  });
+
+  it("returns 'Sin datos' for empty array", () => {
+    const label = derivePeriodLabel([]);
+    expect(label).toBe("Sin datos");
   });
 });
 

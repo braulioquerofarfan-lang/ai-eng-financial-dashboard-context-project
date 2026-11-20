@@ -187,3 +187,61 @@ def test_metrics_alerts_returns_anomaly_candidates():
             "baseline_average",
             "increase_ratio",
         }
+
+
+def test_resolve_seed_parses_env_variable(monkeypatch):
+    """_resolve_seed() debe leer MOCK_SEED del entorno y convertir a int o None."""
+    from app.routes import _resolve_seed
+
+    # Sin MOCK_SEED → None
+    monkeypatch.delenv("MOCK_SEED", raising=False)
+    assert _resolve_seed() is None
+
+    # Con MOCK_SEED=42 → 42
+    monkeypatch.setenv("MOCK_SEED", "42")
+    assert _resolve_seed() == 42
+
+    # Con MOCK_SEED=abc (inválido) → None (comportamiento seguro)
+    monkeypatch.setenv("MOCK_SEED", "abc")
+    assert _resolve_seed() is None
+
+
+def test_metrics_endpoint_reproducible_with_mock_seed(monkeypatch):
+    """Con MOCK_SEED=42, dos GET a /api/metrics devuelven datos idénticos."""
+    monkeypatch.setenv("MOCK_SEED", "42")
+
+    # Llamada 1
+    response_1 = client.get("/api/metrics")
+    assert response_1.status_code == 200
+    payload_1 = response_1.json()
+
+    # Llamada 2
+    response_2 = client.get("/api/metrics")
+    assert response_2.status_code == 200
+    payload_2 = response_2.json()
+
+    # Deben ser idénticas (mismo seed en entorno)
+    assert payload_1 == payload_2
+
+
+def test_metrics_endpoint_varies_without_mock_seed(monkeypatch):
+    """Sin MOCK_SEED, dos GET a /api/metrics devuelven datos distintos (aleatorios)."""
+    # Limpiar MOCK_SEED si estaba definida
+    monkeypatch.delenv("MOCK_SEED", raising=False)
+
+    # Llamada 1
+    response_1 = client.get("/api/metrics")
+    assert response_1.status_code == 200
+    payload_1 = response_1.json()
+
+    # Llamada 2
+    response_2 = client.get("/api/metrics")
+    assert response_2.status_code == 200
+    payload_2 = response_2.json()
+
+    # Sin seed, es estadísticamente probable que al menos algunos montos difieran
+    amounts_1 = sorted([m["amount"] for m in payload_1])
+    amounts_2 = sorted([m["amount"] for m in payload_2])
+
+    # Con 360 movimientos aleatorios, la probabilidad de que dos conjuntos sean idénticos es despreciable
+    assert amounts_1 != amounts_2

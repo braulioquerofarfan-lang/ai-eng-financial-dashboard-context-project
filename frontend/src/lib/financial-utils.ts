@@ -78,3 +78,35 @@ export function formatCurrency(value: number): string {
 export function formatPercent(value: number): string {
   return `${value.toFixed(1)}%`;
 }
+
+export function derivePeriodLabel(movements: FinancialMovement[]): string {
+  if (!movements || movements.length === 0) {
+    return "Sin datos";
+  }
+
+  // Extract YYYY-MM from ISO dates, skip invalid
+  const yearMonths = movements
+    .map((m) => m.create_date.slice(0, 7))
+    .filter((ym) => /^\d{4}-\d{2}$/.test(ym));
+
+  if (yearMonths.length === 0) {
+    return "Sin datos";
+  }
+
+  // Min/max by lexicographic comparison (works for YYYY-MM format)
+  const minYearMonth = yearMonths.reduce((min, current) =>
+    current < min ? current : min
+  );
+  const maxYearMonth = yearMonths.reduce((max, current) =>
+    current > max ? current : max
+  );
+
+  const minLabel = formatMonthYearLabel(minYearMonth);
+  const maxLabel = formatMonthYearLabel(maxYearMonth);
+
+  if (minYearMonth === maxYearMonth) {
+    return minLabel;
+  }
+
+  return `${minLabel} - ${maxLabel}`;
+}

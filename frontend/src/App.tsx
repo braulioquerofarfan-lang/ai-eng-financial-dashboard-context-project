@@ -8,7 +8,8 @@ import {
   type KPIMetrics,
   type MonthlyDataPoint,
 } from "@/lib/financial-types";
-import { computeKPIs, computeMonthlyData } from "@/lib/financial-utils";
+import { getLoadErrorMessage } from "@/lib/error-utils";
+import { computeKPIs, computeMonthlyData, derivePeriodLabel } from "@/lib/financial-utils";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -22,20 +23,21 @@ async function fetchFinancialData(): Promise<FinancialMovement[]> {
 
 function App() {
   const [metrics, setMetrics] = useState<KPIMetrics | null>(null);
+  const [movements, setMovements] = useState<FinancialMovement[]>([]);
   const [monthlyData, setMonthlyData] = useState<MonthlyDataPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchFinancialData()
-      .then((movements) => {
-        setMetrics(computeKPIs(movements));
-        setMonthlyData(computeMonthlyData(movements));
+      .then((data) => {
+        setMovements(data);
+        setMetrics(computeKPIs(data));
+        setMonthlyData(computeMonthlyData(data));
       })
-      .catch(() => {
-        setError(
-          "No se pudo cargar la informacion financiera. Revisa la API de backend.",
-        );
+      .catch((err: unknown) => {
+        console.error("[App] Error al cargar datos financieros:", err);
+        setError(getLoadErrorMessage(err));
       })
       .finally(() => {
         setLoading(false);
@@ -46,7 +48,7 @@ function App() {
     <main className="dark min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="flex flex-col gap-8">
-          <DashboardHeader period="2024 - Full Year" />
+          <DashboardHeader period={loading ? "Cargando..." : derivePeriodLabel(movements)} />
 
           {error ? (
             <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive-foreground">

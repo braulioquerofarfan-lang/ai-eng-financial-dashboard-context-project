@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import random
 from collections import defaultdict
 from datetime import date, timedelta
@@ -69,17 +70,29 @@ def _year_for_month(month: int, today: date) -> int:
 
 
 def _build_movement(month: int, income_probability: float, today: date) -> FinancialMovement:
+    """
+    Construye un movimiento financiero individual simulado.
+
+    Amount ranges (VALORES DE SIMULACIÓN, no datos reales):
+    - Income: USD 800-12000 (ilustrativo, sin requisito verificable)
+    - Expense: USD 500-9000 (ilustrativo, sin requisito verificable)
+    """
     operation_type: OperationType = "income" if random.random(
     ) < income_probability else "outcome"
+    # SIMULACIÓN: día del mes, rango 1-28 (ilustrativo, sin requisito verificable)
     movement_day = random.randint(1, 28)
     movement_date = date(_year_for_month(month, today), month, movement_day)
+    # SIMULACIÓN: probabilidad B2B vs B2C, umbral 0.55 (ilustrativo, sin requisito verificable)
     business_type: BusinessType = "B2B" if random.random() < 0.55 else "B2C"
 
     if operation_type == "income":
+        # SIMULACIÓN: categoría sales vs others, umbral 0.9 (ilustrativo, sin requisito verificable)
         category: Category = "sales" if random.random() < 0.9 else "others"
+        # SIMULACIÓN: monto de ingreso, rango 800-12000 (ilustrativo, sin requisito verificable)
         amount = round(random.uniform(800, 12000), 2)
     else:
         category = random.choice(OUTCOME_CATEGORIES)
+        # SIMULACIÓN: monto de gasto, rango 500-9000 (ilustrativo, sin requisito verificable)
         amount = round(random.uniform(500, 9000), 2)
 
     return FinancialMovement(
@@ -92,16 +105,48 @@ def _build_movement(month: int, income_probability: float, today: date) -> Finan
 
 
 def generate_mock_movements(seed: int | None = None) -> list[FinancialMovement]:
+    """
+    Genera 12 meses de movimientos financieros simulados.
+
+    Args:
+        seed: int | None. Semilla para control de aleatoriedad.
+              - None (default): Genera datos aleatorios en cada llamada.
+              - int: Mismo seed produce idéntico resultado en cada ejecución.
+              Propósito: Facilitar testing determinístico y validación de outputs.
+
+    Returns:
+        list[FinancialMovement] con movimientos de los últimos 12 meses,
+        ordenados cronológicamente.
+    """
     if seed is not None:
         random.seed(seed)
     today = date.today()
     movements: list[FinancialMovement] = []
     for month in range(1, 13):
+        # SIMULACIÓN: probabilidad de ingreso por mes, rango 0.45-0.7 (ilustrativo, sin requisito verificable)
         income_probability = random.uniform(0.45, 0.7)
         for _ in range(30):
             movements.append(_build_movement(month, income_probability, today))
     movements.sort(key=lambda item: item.create_date)
     return movements
+
+
+def _resolve_seed() -> int | None:
+    """
+    Resuelve el seed para datos mock desde la variable de entorno MOCK_SEED.
+
+    Returns:
+        int | None: Semilla numérica si MOCK_SEED es un entero válido,
+                    None si no está definida o es inválida (comportamiento seguro:
+                    datos aleatorios en lugar de fallo silencioso).
+    """
+    seed_str = os.getenv("MOCK_SEED")
+    if seed_str is None:
+        return None
+    try:
+        return int(seed_str)
+    except ValueError:
+        return None
 
 
 def filter_movements_by_date(
@@ -252,7 +297,7 @@ def get_metrics(
     category: Category | None = Query(default=None),
     operation_type: OperationType | None = Query(default=None),
 ) -> list[FinancialMovement]:
-    movements = generate_mock_movements(seed=42)
+    movements = generate_mock_movements(seed=_resolve_seed())
     filtered = filter_movements(
         movements, start_date, end_date, category, operation_type
     )
@@ -261,7 +306,7 @@ def get_metrics(
 
 @router.get("/api/metrics/facets", response_model=MetricsFacets)
 def get_metrics_facets() -> MetricsFacets:
-    movements = generate_mock_movements(seed=42)
+    movements = generate_mock_movements(seed=_resolve_seed())
     return build_metrics_facets(movements)
 
 
@@ -274,7 +319,7 @@ def get_metrics_summary(
     operation_type: OperationType | None = Query(default=None),
     business_type: BusinessType | None = Query(default=None),
 ) -> list[MetricsSummaryItem]:
-    movements = generate_mock_movements(seed=42)
+    movements = generate_mock_movements(seed=_resolve_seed())
     if business_type is not None:
         movements = [
             item for item in movements if item.business_type == business_type]
@@ -292,7 +337,7 @@ def get_top_categories(
     end_date: date | None = Query(default=None),
     business_type: BusinessType | None = Query(default=None),
 ) -> list[TopCategoryItem]:
-    movements = generate_mock_movements(seed=42)
+    movements = generate_mock_movements(seed=_resolve_seed())
     if business_type is not None:
         movements = [
             item for item in movements if item.business_type == business_type]
@@ -308,7 +353,7 @@ def get_metrics_comparison(
     end_date: date = Query(...),
     business_type: BusinessType | None = Query(default=None),
 ) -> MetricsComparison:
-    movements = generate_mock_movements(seed=42)
+    movements = generate_mock_movements(seed=_resolve_seed())
     if business_type is not None:
         movements = [
             item for item in movements if item.business_type == business_type]
@@ -347,7 +392,7 @@ def get_metrics_alerts(
     end_date: date | None = Query(default=None),
     business_type: BusinessType | None = Query(default=None),
 ) -> list[MetricsAlert]:
-    movements = generate_mock_movements(seed=42)
+    movements = generate_mock_movements(seed=_resolve_seed())
     if business_type is not None:
         movements = [
             item for item in movements if item.business_type == business_type]
@@ -367,7 +412,7 @@ def get_b2b_metrics(
     operation_type: OperationType | None = Query(default=None),
 ) -> list[FinancialMovement]:
     movements = [
-        movement for movement in generate_mock_movements(seed=42) if movement.business_type == "B2B"
+        movement for movement in generate_mock_movements(seed=_resolve_seed()) if movement.business_type == "B2B"
     ]
     filtered = filter_movements(
         movements, start_date, end_date, category, operation_type
@@ -383,7 +428,7 @@ def get_b2c_metrics(
     operation_type: OperationType | None = Query(default=None),
 ) -> list[FinancialMovement]:
     movements = [
-        movement for movement in generate_mock_movements(seed=42) if movement.business_type == "B2C"
+        movement for movement in generate_mock_movements(seed=_resolve_seed()) if movement.business_type == "B2C"
     ]
     filtered = filter_movements(
         movements, start_date, end_date, category, operation_type
