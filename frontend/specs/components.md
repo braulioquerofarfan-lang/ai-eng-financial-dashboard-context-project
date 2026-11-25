@@ -41,7 +41,7 @@ interface DateRangeFilterBarProps {
 #### Validación
 - Si `start_date > end_date`, muestra “La fecha de inicio debe ser anterior o igual a la de fin” y no emite el rango inválido (desajuste #8).
 - Mientras el rango sea inválido, el dashboard mantiene los datos del último rango válido.
-- Una sola fecha es válida.
+- Una sola fecha es válida y se envía sola: solo `start_date` = movimientos desde esa fecha (inclusive) hasta el final del dataset; solo `end_date` = desde el inicio del dataset hasta esa fecha (inclusive). La otra propiedad se omite de la URL. Verificado: `?start_date=2026-06-01` → fechas entre 2026-06-01 y 2026-10-28; `?end_date=2026-01-31` → fechas entre 2025-11-01 y 2026-01-28.
 - Fechas fuera de `minDate`/`maxDate`: la API devuelve `[]`; el dashboard muestra el estado vacío “No hay movimientos en el rango seleccionado.”
 
 #### Estados
@@ -55,7 +55,8 @@ Cada rango válido emitido se aplica a GET `/api/metrics` (KPIs, gráficos y per
 
 #### Casos límite F1
 - Ambos inputs vacíos: se omiten las propiedades de fecha y se muestran todos los datos (GET /api/metrics sin parámetros).
-- Solo fecha de inicio o solo fecha de fin: rango válido.
+- Solo fecha de inicio: se envía solo `start_date`; el dashboard muestra los datos desde esa fecha y el header refleja el período resultante.
+- Solo fecha de fin: se envía solo `end_date`; el dashboard muestra los datos hasta esa fecha y el header refleja el período resultante.
 - Inicio posterior al fin: muestra validación y no emite el rango inválido.
 - Rango sin datos: muestra “No hay movimientos en el rango seleccionado.”
 - Facets con error: inputs funcionan sin `min`/`max` y se muestra “Rango disponible no disponible”.
@@ -148,7 +149,7 @@ interface CategoryTopTableProps {
 ```
 
 #### Comportamiento
-El título es `businessType`. Columnas, en orden: “Categoría” (`category` tal como llega, sin traducir), “Total de ingresos” (`formatCurrency(total_amount)`) y “% del grupo” (`formatPercent(total_amount / totalGrupo × 100)`). `totalGrupo` es la suma de `total_amount` de `categories`. Con `limit=5` la respuesta incluye todas las categorías del grupo, porque el enum tiene 5 (desajuste #6). Conserva el orden de la API, `total_amount` descendente (routes.py L245), sin reordenar. Muestra las filas recibidas (0 a 5); las categorías sin movimientos no aparecen (L240–243) y no se rellenan.
+El título es `businessType`. Columnas, en orden: “Categoría” (`category` tal como llega, sin traducir), “Total de ingresos” (`formatCurrency(total_amount)`) y “% del grupo” (`formatPercent(total_amount / totalGrupo × 100)`). `totalGrupo` es la suma de `total_amount` de `categories`. Con `limit=5` la respuesta incluye todas las categorías del grupo, porque el enum tiene 5 (desajuste #6). Conserva el orden de la API, `total_amount` descendente (routes.py L245), sin reordenar. Muestra las filas recibidas (0 a 5); las categorías sin movimientos no aparecen (L240–243) y no se rellenan. Se renderiza una instancia por panel (B2B y B2C) y ambas siguen las mismas reglas de estado. Estado vacío (respuesta 200 con `[]`): el panel NO desaparece; muestra su título (`businessType`), los encabezados de las 3 columnas y una fila con 'Sin ingresos para <businessType> en el rango seleccionado.'; no calcula el % (evita dividir por 0) y su barra en `BusinessTotalsChart` vale 0.
 
 ### Componente: `BusinessTotalsChart`
 
@@ -203,7 +204,8 @@ El rango se valida igual que en F1. Cada sección tiene su propio estado; un err
 - Por cada `business_type` y cada rango válido se consulta GET `/api/metrics/categories/top` con `TopCategoriesParams` = `{ operation_type: "income", limit: 5, business_type, ...rango }`. `operation_type` es obligatorio: si se omite, la API devuelve gastos.
 
 ### Casos límite F3
-- Grupo sin ingresos en el rango: tabla con “Sin ingresos para <B2B/B2C> en el rango seleccionado.”, sin porcentaje y barra en 0.
+- Panel B2B sin ingresos: el panel B2B muestra 'Sin ingresos para B2B en el rango seleccionado.' con encabezados visibles; el panel B2C se renderiza normal.
+- Panel B2C sin ingresos: el panel B2C muestra 'Sin ingresos para B2C en el rango seleccionado.' con encabezados visibles; el panel B2B se renderiza normal.
 - Menos de 5 categorías: se muestran solo las filas recibidas, sin filas vacías ni relleno; con los datos actuales cada grupo de ingresos devuelve 2 (`sales`, `others`).
 - Facets con error: fallback a “B2B” y “B2C”.
 - Error en una sola sección: la otra sección continúa visible.
